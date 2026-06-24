@@ -14,8 +14,11 @@ import argparse
 import copy
 import glob
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
+
+_RULE_ID_RE = re.compile(r"""<rule\b[^>]*\bid=['"](\d+)['"]""")
 
 GDPR_TO_LGPD = {
     "gdpr_II_5.1.f":  "lgpd_Art6_VII",
@@ -107,16 +110,20 @@ def collect_user_rule_ids(user_rules_dir: str, output_file: str) -> set:
     for xml_path in glob.glob(os.path.join(user_rules_dir, "*.xml")):
         if os.path.basename(xml_path) == output_basename:
             continue
+        with open(xml_path, "r", encoding="utf-8", errors="replace") as fh:
+            raw = fh.read()
         try:
-            with open(xml_path, "r", encoding="utf-8", errors="replace") as fh:
-                raw = fh.read()
             root = ET.fromstring(f"<_root_>{raw}</_root_>")
             for rule in root.iter("rule"):
                 rid = rule.get("id")
                 if rid:
                     existing_ids.add(rid)
         except ET.ParseError:
-            pass
+            # Arquivo XML malformado para o parser Python mas válido para o
+            # Wazuh (ex.: & não escapado). Extrai IDs via regex para não perder
+            # regras que conflitariam com nosso output.
+            for m in _RULE_ID_RE.finditer(raw):
+                existing_ids.add(m.group(1))
     return existing_ids
 
 
