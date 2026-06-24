@@ -87,7 +87,7 @@ def build_override(rule_el: ET.Element, lgpd_tags: list,
     groups_text = (group_el.text or "").strip() if group_el is not None else ""
 
     for child in rule_el:
-        if child.tag != "group":
+        if child.tag not in ("group", "if_group"):
             override.append(copy.deepcopy(child))
 
     new_group = ET.SubElement(override, "group")
@@ -100,12 +100,35 @@ def build_override(rule_el: ET.Element, lgpd_tags: list,
     return override
 
 
+def collect_user_rule_ids(user_rules_dir: str, output_file: str) -> set:
+    """Coleta IDs de regras já definidas em etc/rules/ para evitar duplicatas."""
+    output_basename = os.path.basename(output_file)
+    existing_ids = set()
+    for xml_path in glob.glob(os.path.join(user_rules_dir, "*.xml")):
+        if os.path.basename(xml_path) == output_basename:
+            continue
+        try:
+            with open(xml_path, "r", encoding="utf-8", errors="replace") as fh:
+                raw = fh.read()
+            root = ET.fromstring(f"<_root_>{raw}</_root_>")
+            for rule in root.iter("rule"):
+                rid = rule.get("id")
+                if rid:
+                    existing_ids.add(rid)
+        except ET.ParseError:
+            pass
+    return existing_ids
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rules-dir",
                         default="/var/ossec/ruleset/rules",
                         help="Diretório das regras nativas do Wazuh (padrão: /var/ossec/ruleset/rules)")
+    parser.add_argument("--user-rules-dir",
+                        default="/var/ossec/etc/rules",
+                        help="Diretório de regras customizadas (padrão: /var/ossec/etc/rules)")
     parser.add_argument("--output",
                         default="/var/ossec/etc/rules/local_rules_lgpd.xml",
                         help="Caminho do arquivo de saída")
@@ -119,12 +142,24 @@ def main():
         print(f"ERRO: Diretório não encontrado: {args.rules_dir}", file=sys.stderr)
         sys.exit(1)
 
+    # IDs já definidos em etc/rules/ — não podemos criar overwrite sobre eles
+    # pois overwrite="yes" só funciona para regras nativas (ruleset/rules/)
+    user_rule_ids = set()
+    if os.path.isdir(args.user_rules_dir):
+        user_rule_ids = collect_user_rule_ids(args.user_rules_dir, args.output)
+        if user_rule_ids:
+            print(f"INFO: {len(user_rule_ids)} IDs em '{args.user_rules_dir}' serão ignorados "
+                  f"(evita duplicatas)", file=sys.stderr)
+
     root = ET.Element("group")
     root.set("name", "lgpd,")
 
     total = 0
+    skipped_duplicates = 0
+    skipped_seen_ids = 0
     stats = {tag: 0 for tag in GDPR_TO_LGPD.values()}
     processed_files = 0
+    seen_rule_ids = set()
 
     exclude_set = set(args.exclude_files or [])
 
@@ -157,6 +192,21 @@ def main():
             if rule_level < args.min_level:
                 continue
 
+            rule_id = rule.get("id", "")
+
+            # Pular IDs que já existem em etc/rules/ — overwrite="yes" não
+            # resolve conflitos entre dois arquivos no mesmo diretório de usuário
+            if rule_id in user_rule_ids:
+                skipped_duplicates += 1
+                continue
+
+            # Pular IDs já processados de outros arquivos em ruleset/rules/
+            # (evita entradas duplicadas no output quando o mesmo ID aparece em
+            # mais de um arquivo nativo)
+            if rule_id in seen_rule_ids:
+                skipped_seen_ids += 1
+                continue
+
             group_el = rule.find("group")
             groups_text = (group_el.text or "") if group_el is not None else ""
 
@@ -166,6 +216,7 @@ def main():
 
             override = build_override(rule, lgpd_tags, vars_dict)
             file_overrides.append(override)
+            seen_rule_ids.add(rule_id)
             for tag in lgpd_tags:
                 stats[tag] += 1
             total += 1
@@ -233,6 +284,10 @@ def main():
 
     print(f"Gerado: {args.output}")
     print(f"Total de regras com override LGPD: {total} em {processed_files} arquivo(s)")
+    if skipped_duplicates:
+        print(f"Puladas (conflito com etc/rules/): {skipped_duplicates} regras")
+    if skipped_seen_ids:
+        print(f"Puladas (ID duplicado entre arquivos nativos): {skipped_seen_ids} regras")
     print("")
     for gdpr_tag, lgpd_tag in GDPR_TO_LGPD.items():
         print(f"  {lgpd_tag:20s}  {stats[lgpd_tag]:4d} regras  ← {gdpr_tag}")
