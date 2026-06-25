@@ -1,0 +1,142 @@
+<!--
+  LGPD Special Rules - Wazuh
+  Lei Geral de Protecao de Dados (Lei 13.709/2018)
+
+  Regras complementares para artigos da LGPD que nao possuem mapeamento
+  direto nas tags GDPR nativas do Wazuh.
+
+  Escopo:
+    Art. 5  - definicoes e classificacao de dados pessoais/sensiveis
+    Art. 7  - hipoteses legais / base legal / consentimento
+    Art. 11 - tratamento de dados pessoais sensiveis
+    Art. 15 - termino do tratamento / retencao / eliminacao
+
+  Observacao:
+    Estas regras dependem de logs de aplicacao, banco, IAM, DLP ou trilhas
+    de auditoria que registrem estes eventos em texto ou JSON.
+-->
+
+<group name="lgpd,lgpd_special,">
+
+  <!-- Base: eventos de privacidade/LGPD em logs de aplicacao ou auditoria -->
+  <rule id="110500" level="0">
+    <match type="pcre2">(?i)\b(lgpd|lei geral de prote[cç][aã]o de dados|privacy|privacidade|data protection|personal data|dados? pessoais?|sensitive data|dados? sens[ií]veis?|consentimento|consent|legal basis|base legal|reten[cç][aã]o|retention|anonimiz|anonymiz|pseudonimiz|pseudonymiz)\b</match>
+    <description>LGPD: evento relacionado a privacidade ou tratamento de dados pessoais.</description>
+    <group>lgpd,lgpd_special,lgpd_privacy_event,</group>
+  </rule>
+
+  <!-- Art. 5: definicoes e classificacao -->
+  <rule id="110501" level="3">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(personal data|dado pessoal|dados pessoais|cpf|rg|passport|passaporte|email|e-mail|telefone|phone|endereco|address|data subject|titular dos dados|titular de dados)\b</match>
+    <description>LGPD Art. 5: evento menciona dado pessoal ou titular de dados.</description>
+    <group>lgpd,lgpd_Art5,lgpd_Art5_dado_pessoal,</group>
+  </rule>
+
+  <rule id="110502" level="5">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(sensitive personal data|sensitive data|dado sensivel|dados sensiveis|dado sensível|dados sensíveis|biometria|biometric|genetic|genetico|genético|health data|dados de sa[uú]de|religious belief|convic[cç][aã]o religiosa|political opinion|opini[aã]o pol[ií]tica|racial|ethnic|[eé]tnic|trade union|sindicato|vida sexual|sex life)\b</match>
+    <description>LGPD Art. 5: evento menciona dado pessoal sensivel.</description>
+    <group>lgpd,lgpd_Art5,lgpd_Art5_dado_sensivel,lgpd_Art11,lgpd_sensitive_data,</group>
+  </rule>
+
+  <rule id="110503" level="3">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(anonymization|anonymized|anonimizacao|anonimiza[cç][aã]o|anonimizado|pseudonymization|pseudonymized|pseudonimizacao|pseudonimiza[cç][aã]o|pseudonimizado)\b</match>
+    <description>LGPD Art. 5: evento menciona anonimizacao ou pseudonimizacao.</description>
+    <group>lgpd,lgpd_Art5,lgpd_Art5_anonimizacao,</group>
+  </rule>
+
+  <!-- Art. 7: hipoteses legais, base legal e consentimento -->
+  <rule id="110510" level="4">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(consent granted|consent accepted|consentimento concedido|consentimento aceito|consentimento registrado|legal basis assigned|base legal definida|base legal atribuida|base legal atribuída)\b</match>
+    <description>LGPD Art. 7: consentimento ou base legal registrado para tratamento de dados pessoais.</description>
+    <group>lgpd,lgpd_Art7,lgpd_Art7_base_legal,lgpd_consent,</group>
+  </rule>
+
+  <rule id="110511" level="7">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(consent revoked|consent withdrawn|revoga[cç][aã]o de consentimento|consentimento revogado|retirada de consentimento|opt-out)\b</match>
+    <description>LGPD Art. 7: consentimento revogado ou retirado pelo titular.</description>
+    <group>lgpd,lgpd_Art7,lgpd_Art7_consentimento_revogado,lgpd_consent,</group>
+  </rule>
+
+  <rule id="110512" level="10">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(missing legal basis|legal basis missing|legal basis not found|invalid legal basis|base legal ausente|sem base legal|base legal invalida|base legal inválida|consent required|consentimento obrigatorio|consentimento obrigatório|without consent|sem consentimento)\b</match>
+    <description>LGPD Art. 7: tratamento de dados pessoais sem base legal ou consentimento requerido.</description>
+    <group>lgpd,lgpd_Art7,lgpd_Art7_base_legal_ausente,lgpd_policy_violation,</group>
+  </rule>
+
+  <rule id="110513" level="9">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(purpose changed|purpose mismatch|finalidade alterada|mudanca de finalidade|mudança de finalidade|finalidade incompat[ií]vel|data sharing without consent|compartilhamento sem consentimento|shared without consent|compartilhado sem consentimento)\b</match>
+    <description>LGPD Art. 7: alteracao de finalidade ou compartilhamento sem consentimento/base legal adequada.</description>
+    <group>lgpd,lgpd_Art7,lgpd_Art7_finalidade,lgpd_policy_violation,</group>
+  </rule>
+
+  <!-- Art. 11: tratamento de dados pessoais sensiveis -->
+  <rule id="110520" level="7">
+    <if_sid>110502</if_sid>
+    <match type="pcre2">(?i)\b(access|accessed|consulta|consultou|acessou|read|select|view|visualiz|export|exported|download|downloaded|extracao|extra[cç][aã]o|share|shared|compartilh|transfer|transferred|transmit|transmitido)\b</match>
+    <description>LGPD Art. 11: acesso, exportacao, compartilhamento ou transferencia envolvendo dados sensiveis.</description>
+    <group>lgpd,lgpd_Art11,lgpd_Art11_tratamento_dados_sensiveis,lgpd_sensitive_data,</group>
+  </rule>
+
+  <rule id="110521" level="11">
+    <if_sid>110502</if_sid>
+    <match type="pcre2">(?i)\b(unauthorized|unauthorised|nao autorizado|não autorizado|denied|negado|blocked|bloqueado|policy violation|violacao de politica|violação de política|forbidden|proibido|without consent|sem consentimento|missing legal basis|base legal ausente|sem base legal)\b</match>
+    <description>LGPD Art. 11: possivel tratamento irregular de dados pessoais sensiveis.</description>
+    <group>lgpd,lgpd_Art11,lgpd_Art11_tratamento_irregular,lgpd_sensitive_data,lgpd_policy_violation,</group>
+  </rule>
+
+  <rule id="110522" level="12">
+    <if_sid>110502</if_sid>
+    <match type="pcre2">(?i)\b(data leak|data leakage|exfiltration|exfiltracao|exfiltra[cç][aã]o|vazamento|leak|dump|bulk export|exportacao em massa|exportação em massa|mass download|download em massa)\b</match>
+    <description>LGPD Art. 11: possivel vazamento ou exfiltracao de dados pessoais sensiveis.</description>
+    <mitre>
+      <id>T1005</id>
+      <id>T1041</id>
+      <id>T1020</id>
+    </mitre>
+    <group>lgpd,lgpd_Art11,lgpd_Art11_vazamento_dados_sensiveis,lgpd_sensitive_data,lgpd_data_leak,</group>
+  </rule>
+
+  <rule id="110523" level="10">
+    <if_sid>110502</if_sid>
+    <match type="pcre2">(?i)\b(permission changed|role changed|privilege changed|permiss[aã]o alterada|perfil alterado|privilegio alterado|privilégio alterado|grant|revoke|role assignment|atribuicao de perfil|atribuição de perfil)\b</match>
+    <description>LGPD Art. 11: alteracao de permissao relacionada a dado pessoal sensivel.</description>
+    <group>lgpd,lgpd_Art11,lgpd_Art11_acesso_dados_sensiveis,lgpd_sensitive_data,lgpd_access_control,</group>
+  </rule>
+
+  <!-- Art. 15: termino do tratamento, retencao e eliminacao -->
+  <rule id="110530" level="6">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(processing terminated|processing ended|termino do tratamento|término do tratamento|encerramento do tratamento|purpose achieved|finalidade alcan[cç]ada|retention expired|retencao expirada|reten[cç][aã]o expirada|retention period expired|prazo de retencao expirado|prazo de reten[cç][aã]o expirado)\b</match>
+    <description>LGPD Art. 15: termino do tratamento ou prazo de retencao expirado.</description>
+    <group>lgpd,lgpd_Art15,lgpd_Art15_termino_tratamento,lgpd_retention,</group>
+  </rule>
+
+  <rule id="110531" level="8">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(data deleted|data erased|deleted personal data|erasure completed|exclusao concluida|exclusão concluída|eliminacao concluida|eliminação concluída|dados eliminados|dados excluidos|dados excluídos|anonymization completed|anonimizacao concluida|anonimização concluída)\b</match>
+    <description>LGPD Art. 15/16: eliminacao ou anonimizacao de dados apos termino do tratamento.</description>
+    <group>lgpd,lgpd_Art15,lgpd_Art15_eliminacao,lgpd_retention,</group>
+  </rule>
+
+  <rule id="110532" level="11">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(delete failed|erasure failed|anonymization failed|falha na exclusao|falha na exclusão|falha na eliminacao|falha na eliminação|falha na anonimizacao|falha na anonimização|retention violation|violacao de retencao|violação de retenção|retained after expiration|mantido apos expiracao|mantido após expiração)\b</match>
+    <description>LGPD Art. 15: falha de eliminacao/anonimizacao ou possivel violacao de retencao.</description>
+    <group>lgpd,lgpd_Art15,lgpd_Art15_retencao_irregular,lgpd_retention,lgpd_policy_violation,</group>
+  </rule>
+
+  <rule id="110533" level="12">
+    <if_sid>110500</if_sid>
+    <match type="pcre2">(?i)\b(access after termination|access after consent revoked|acesso apos termino|acesso após término|acesso apos revogacao|acesso após revogação|processing after termination|tratamento apos termino|tratamento após término|processing after consent revoked|tratamento apos revogacao|tratamento após revogação)\b</match>
+    <description>LGPD Art. 15: tratamento ou acesso apos termino da finalidade ou revogacao de consentimento.</description>
+    <group>lgpd,lgpd_Art15,lgpd_Art15_tratamento_apos_termino,lgpd_retention,lgpd_policy_violation,</group>
+  </rule>
+
+</group>

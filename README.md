@@ -8,6 +8,7 @@ Mapeamento das regras nativas do Wazuh para a **Lei Geral de Proteção de Dados
 |---|---|
 | `generate_lgpd_rules.py` | Script que lê as regras nativas e gera os overrides com tags LGPD |
 | `local_rules_lgpd.xml` | Arquivo de regras gerado — pronto para deploy |
+| `local_rules_lgpd_special.xml` | Regras complementares para Art. 5, 7, 11 e 15 da LGPD |
 
 ## Mapeamento GDPR → LGPD
 
@@ -22,6 +23,19 @@ O Wazuh usa nativamente 4 artigos GDPR. Cada um tem correspondente direto na LGP
 
 **Total: 1353 regras com mapeamento LGPD** em 114 arquivos do ruleset nativo (Wazuh 4.14.5).
 
+## Regras especiais LGPD
+
+Os artigos 5, 7, 11 e 15 da LGPD não possuem correspondência direta nas tags GDPR nativas do Wazuh. Por isso, ficam em um arquivo separado: `local_rules_lgpd_special.xml`.
+
+| Tag LGPD | Artigo LGPD | Finalidade |
+|---|---|---|
+| `lgpd_Art5` | Art. 5 — Definições | Classificar eventos que mencionam dado pessoal, dado sensível, titular, anonimização ou pseudonimização |
+| `lgpd_Art7` | Art. 7 — Bases legais | Alertar sobre consentimento, base legal ausente/inválida, mudança de finalidade ou compartilhamento sem consentimento |
+| `lgpd_Art11` | Art. 11 — Dados sensíveis | Alertar sobre acesso, exportação, compartilhamento, permissão irregular ou vazamento de dados sensíveis |
+| `lgpd_Art15` | Art. 15 — Término do tratamento | Alertar sobre retenção expirada, eliminação/anonimização, falhas de expurgo ou tratamento após término/revogação |
+
+Essas regras dependem de logs de aplicação, banco, IAM, DLP ou trilhas de auditoria contendo termos de privacidade, consentimento, base legal, dados sensíveis e retenção. Elas não substituem controles de negócio; apenas tornam esses eventos pesquisáveis e alertáveis no Wazuh.
+
 ## Como implementar em outro ambiente
 
 ### Pré-requisitos
@@ -35,8 +49,9 @@ O Wazuh usa nativamente 4 artigos GDPR. Cada um tem correspondente direto na LGP
 Use quando o `local_rules_lgpd.xml` já foi gerado para a sua versão do Wazuh.
 
 ```bash
-# 1. Copiar o arquivo para o diretório de regras customizadas
+# 1. Copiar os arquivos para o diretório de regras customizadas
 cp local_rules_lgpd.xml /var/ossec/etc/rules/
+cp local_rules_lgpd_special.xml /var/ossec/etc/rules/
 
 # 2. Validar a configuração (sem reiniciar)
 /var/ossec/bin/wazuh-analysisd -t
@@ -84,6 +99,7 @@ Para ambientes onde as regras do usuário são em volume Docker.
 # /opt/wazuh-docker/volumes/wazuh_etc/_data/rules/
 
 cp local_rules_lgpd.xml /opt/wazuh-docker/volumes/wazuh_etc/_data/rules/
+cp local_rules_lgpd_special.xml /opt/wazuh-docker/volumes/wazuh_etc/_data/rules/
 
 # Validar dentro do container
 docker exec <wazuh-manager> /var/ossec/bin/wazuh-analysisd -t
@@ -132,7 +148,7 @@ GET wazuh-alerts-*/_search
 {
   "query": {
     "terms": {
-      "rule.groups": ["lgpd_Art38", "lgpd_Art46", "lgpd_Art37", "lgpd_Art6_VII"]
+      "rule.groups": ["lgpd_Art38", "lgpd_Art46", "lgpd_Art37", "lgpd_Art6_VII", "lgpd_Art5", "lgpd_Art7", "lgpd_Art11", "lgpd_Art15"]
     }
   },
   "aggs": {
